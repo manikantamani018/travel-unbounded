@@ -22,11 +22,102 @@ export default function BookingForm() {
   const [loading, setLoading] = useState(false);
 
   const update = (e) => {
+    const { name, value } = e.target;
+
+    // Phone number: allow numbers only and maximum 10 digits
+    if (name === "phone") {
+      const numbersOnly = value.replace(/\D/g, "");
+
+      if (numbersOnly.length <= 10) {
+        setForm({
+          ...form,
+          phone: numbersOnly,
+        });
+      }
+
+      return;
+    }
+
     setForm({
       ...form,
-      [e.target.name]: e.target.value,
+      [name]: value,
     });
   };
+
+  function validateForm() {
+    // Full Name
+    if (!form.fullName.trim()) {
+      return "Please enter your full name.";
+    }
+
+    if (form.fullName.trim().length < 2) {
+      return "Full name must contain at least 2 characters.";
+    }
+
+    // Country Code
+    if (!form.countryCode) {
+      return "Please select a country code.";
+    }
+
+    // Phone Number
+    const phone = form.phone.trim();
+
+    if (!phone) {
+      return "Please enter your contact number.";
+    }
+
+    if (!/^\d+$/.test(phone)) {
+      return "Phone number can contain numbers only.";
+    }
+
+    if (!/^\d{10}$/.test(phone)) {
+      return "Phone number must contain exactly 10 digits.";
+    }
+
+    // Email
+    if (!form.email.trim()) {
+      return "Please enter your email address.";
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      return "Please enter a valid email address.";
+    }
+
+    // Travel Date
+    if (!form.dateOfTravel) {
+      return "Please select your travel date.";
+    }
+
+    const selectedDate = new Date(`${form.dateOfTravel}T00:00:00`);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (selectedDate <= today) {
+      return "Please select a future travel date.";
+    }
+
+    // Number of People
+    const people = Number(form.numberOfPeople);
+
+    if (!Number.isInteger(people) || people < 1) {
+      return "Number of people must be at least 1.";
+    }
+
+    // Hotel Category
+    if (!form.hotelCategory) {
+      return "Please select a hotel category.";
+    }
+
+    // Number of Children
+    const children = Number(form.numberOfChildren);
+
+    if (!Number.isInteger(children) || children < 0) {
+      return "Number of children cannot be negative.";
+    }
+
+    return null;
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -36,73 +127,32 @@ export default function BookingForm() {
       message: "",
     });
 
-    // Full name validation
-    if (!form.fullName.trim()) {
-      return setStatus({
-        type: "error",
-        message: "Please enter your full name.",
-      });
-    }
+    // Validate before sending request
+    const validationError = validateForm();
 
-    // Phone validation
-    const cleanPhone = form.phone.replace(/\D/g, "");
-
-    if (!cleanPhone || cleanPhone.length < 6) {
-      return setStatus({
+    if (validationError) {
+      setStatus({
         type: "error",
-        message: "Please enter a valid phone number.",
+        message: validationError,
       });
-    }
 
-    // Email validation
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      return setStatus({
-        type: "error",
-        message: "Please enter a valid email address.",
-      });
-    }
-
-    // Travel date validation
-    if (!form.dateOfTravel || new Date(form.dateOfTravel) <= new Date()) {
-      return setStatus({
-        type: "error",
-        message: "Please select a future travel date.",
-      });
-    }
-
-    // Number of people validation
-    if (Number(form.numberOfPeople) < 1) {
-      return setStatus({
-        type: "error",
-        message: "Number of people must be at least 1.",
-      });
-    }
-
-    // Hotel validation
-    if (!form.hotelCategory) {
-      return setStatus({
-        type: "error",
-        message: "Please select a hotel category.",
-      });
-    }
-
-    // Children validation
-    if (Number(form.numberOfChildren) < 0) {
-      return setStatus({
-        type: "error",
-        message: "Number of children cannot be negative.",
-      });
+      return;
     }
 
     setLoading(true);
 
     try {
-      // Combine country code and phone number
-      const phoneNumber = `${form.countryCode}${cleanPhone}`;
+      // Combine country code + 10-digit phone number
+      const phoneNumber = `${form.countryCode}${form.phone}`;
 
       const requestData = {
-        ...form,
+        fullName: form.fullName.trim(),
         phone: phoneNumber,
+        email: form.email.trim().toLowerCase(),
+        dateOfTravel: form.dateOfTravel,
+        numberOfPeople: Number(form.numberOfPeople),
+        hotelCategory: form.hotelCategory,
+        numberOfChildren: Number(form.numberOfChildren),
       };
 
       const res = await fetch("/api/enquiry", {
@@ -119,7 +169,7 @@ export default function BookingForm() {
         throw new Error(data.message || "Unable to submit your enquiry.");
       }
 
-      // Success message
+      // Success
       setStatus({
         type: "success",
         message:
@@ -137,19 +187,22 @@ export default function BookingForm() {
         hotelCategory: "",
         numberOfChildren: 0,
       });
-    } catch (err) {
+    } catch (error) {
       setStatus({
         type: "error",
         message:
-          err.message || "Unable to submit your enquiry. Please try again.",
+          error.message || "Unable to submit your enquiry. Please try again.",
       });
     } finally {
       setLoading(false);
     }
   }
 
-  // Today's date for date picker
-  const today = new Date().toISOString().split("T")[0];
+  // Tomorrow as minimum travel date
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const minDate = tomorrow.toISOString().split("T")[0];
 
   return (
     <form
@@ -159,6 +212,7 @@ export default function BookingForm() {
       {/* Status Message */}
       {status.message && (
         <div
+          role="alert"
           className={`mb-6 rounded-xl p-4 ${
             status.type === "success"
               ? "bg-emerald-50 text-emerald-800"
@@ -179,20 +233,21 @@ export default function BookingForm() {
             onChange={update}
             className="input"
             placeholder="Your full name"
+            minLength={2}
             required
           />
         </Field>
 
         {/* Contact Number */}
         <Field label="Contact Number">
-          <div className="flex overflow-hidden rounded-xl border border-gray-300 bg-white transition focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
-            {/* Country / STD Code */}
+          <div className="contact-phone">
+            {/* Country Code */}
             <select
               name="countryCode"
               value={form.countryCode}
               onChange={update}
-              className="w-[105px] shrink-0 border-0 border-r border-gray-300 bg-transparent px-3 py-3 text-sm font-medium text-gray-700 outline-none focus:border-gray-300 focus:outline-none focus:ring-0"
               aria-label="Country code"
+              required
             >
               <option value="+91">🇮🇳 +91</option>
               <option value="+1">🇺🇸 +1</option>
@@ -211,9 +266,10 @@ export default function BookingForm() {
               name="phone"
               value={form.phone}
               onChange={update}
-              className="min-w-0 flex-1 border-0 px-4 py-3 text-gray-800 outline-none placeholder:text-gray-400 focus:outline-none focus:ring-0"
               placeholder="9876543210"
               inputMode="numeric"
+              minLength={10}
+              maxLength={10}
               required
             />
           </div>
@@ -239,7 +295,7 @@ export default function BookingForm() {
             name="dateOfTravel"
             value={form.dateOfTravel}
             onChange={update}
-            min={today}
+            min={minDate}
             className="input"
             required
           />
@@ -250,6 +306,7 @@ export default function BookingForm() {
           <input
             type="number"
             min="1"
+            step="1"
             name="numberOfPeople"
             value={form.numberOfPeople}
             onChange={update}
@@ -279,6 +336,7 @@ export default function BookingForm() {
           <input
             type="number"
             min="0"
+            step="1"
             name="numberOfChildren"
             value={form.numberOfChildren}
             onChange={update}
