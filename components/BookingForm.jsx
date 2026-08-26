@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
-import "react-phone-number-input/style.css";
 
 export default function BookingForm() {
   const [form, setForm] = useState({
     fullName: "",
+    countryCode: "+91",
     phone: "",
     email: "",
     dateOfTravel: "",
@@ -46,7 +45,9 @@ export default function BookingForm() {
     }
 
     // Phone validation
-    if (!form.phone || !isValidPhoneNumber(form.phone)) {
+    const cleanPhone = form.phone.replace(/\D/g, "");
+
+    if (!cleanPhone || cleanPhone.length < 6) {
       return setStatus({
         type: "error",
         message: "Please enter a valid phone number.",
@@ -96,20 +97,29 @@ export default function BookingForm() {
     setLoading(true);
 
     try {
+      // Combine country code and phone number
+      const phoneNumber = `${form.countryCode}${cleanPhone}`;
+
+      const requestData = {
+        ...form,
+        phone: phoneNumber,
+      };
+
       const res = await fetch("/api/enquiry", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify(requestData),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || "Something went wrong.");
+        throw new Error(data.message || "Unable to submit your enquiry.");
       }
 
+      // Success message
       setStatus({
         type: "success",
         message:
@@ -119,6 +129,7 @@ export default function BookingForm() {
       // Reset form
       setForm({
         fullName: "",
+        countryCode: "+91",
         phone: "",
         email: "",
         dateOfTravel: "",
@@ -137,7 +148,7 @@ export default function BookingForm() {
     }
   }
 
-  // Today's date for the date picker
+  // Today's date for date picker
   const today = new Date().toISOString().split("T")[0];
 
   return (
@@ -145,6 +156,7 @@ export default function BookingForm() {
       onSubmit={submit}
       className="rounded-3xl bg-white p-6 shadow-lg md:p-10"
     >
+      {/* Status Message */}
       {status.message && (
         <div
           className={`mb-6 rounded-xl p-4 ${
@@ -171,20 +183,40 @@ export default function BookingForm() {
           />
         </Field>
 
-        {/* Phone */}
+        {/* Contact Number */}
         <Field label="Contact Number">
-          <PhoneInput
-            international
-            defaultCountry="IN"
-            value={form.phone}
-            onChange={(value) =>
-              setForm({
-                ...form,
-                phone: value || "",
-              })
-            }
-            className="phone-input"
-          />
+          <div className="flex overflow-hidden rounded-xl border border-gray-300 bg-white transition focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
+            {/* Country / STD Code */}
+            <select
+              name="countryCode"
+              value={form.countryCode}
+              onChange={update}
+              className="w-[105px] shrink-0 border-0 border-r border-gray-300 bg-transparent px-3 py-3 text-sm font-medium text-gray-700 outline-none focus:border-gray-300 focus:outline-none focus:ring-0"
+              aria-label="Country code"
+            >
+              <option value="+91">🇮🇳 +91</option>
+              <option value="+1">🇺🇸 +1</option>
+              <option value="+44">🇬🇧 +44</option>
+              <option value="+61">🇦🇺 +61</option>
+              <option value="+971">🇦🇪 +971</option>
+              <option value="+65">🇸🇬 +65</option>
+              <option value="+81">🇯🇵 +81</option>
+              <option value="+49">🇩🇪 +49</option>
+              <option value="+33">🇫🇷 +33</option>
+            </select>
+
+            {/* Phone Number */}
+            <input
+              type="tel"
+              name="phone"
+              value={form.phone}
+              onChange={update}
+              className="min-w-0 flex-1 border-0 px-4 py-3 text-gray-800 outline-none placeholder:text-gray-400 focus:outline-none focus:ring-0"
+              placeholder="9876543210"
+              inputMode="numeric"
+              required
+            />
+          </div>
         </Field>
 
         {/* Email */}
@@ -200,7 +232,7 @@ export default function BookingForm() {
           />
         </Field>
 
-        {/* Travel Date */}
+        {/* Date of Travel */}
         <Field label="Date of Travel">
           <input
             type="date"
@@ -242,7 +274,7 @@ export default function BookingForm() {
           </select>
         </Field>
 
-        {/* Children */}
+        {/* Number of Children */}
         <Field label="Number of Children (optional)">
           <input
             type="number"
@@ -255,11 +287,11 @@ export default function BookingForm() {
         </Field>
       </div>
 
-      {/* Submit */}
+      {/* Submit Button */}
       <button
         type="submit"
         disabled={loading}
-        className="mt-8 w-full rounded-full bg-emerald-700 px-6 py-4 font-bold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-8 w-full rounded-full bg-emerald-700 px-6 py-4 font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? "Sending enquiry..." : "Send Enquiry"}
       </button>
